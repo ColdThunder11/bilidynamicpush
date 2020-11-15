@@ -180,7 +180,7 @@ async def get_bili_dynamic():
                     trueContent =contentJo['item']['description']
                     trueContent = getLimitedMessage(trueContent)
                     sendCQCode.append(trueContent)
-                    if picturesCount>0 and picturesCount<9:
+                    if picturesCount>0 and picturesCount<4:
                         pictureSrcs=[]
                         for pic in contentJo['item']['pictures']:
                             pictureSrcs.append(pic['img_src'])
