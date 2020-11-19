@@ -1,5 +1,5 @@
 {
-    "message_length_limit":200,
+    "message_length_limit":150,
     "uid_bind":{
         "353840826":["all"]
     }
