@@ -13,6 +13,7 @@ messageLengthLimit=0
 push_uids = {}
 push_times = {}
 room_states = {}
+all_user_name ={}
 isOnChecking = False
 bilibiliCookie = ''
 
@@ -47,7 +48,7 @@ def getLimitedMessage(originMsg):
     else:
         return originMsg
 
-def loadConfig():
+async def loadConfig():
     global push_uids
     global push_times
     global room_states
@@ -73,8 +74,8 @@ def loadConfig():
         list2.append(str2)
     b = "".join(list2)
     bilibiliCookie='LIVE_BUVID=AUTO{random_id};'.format(random_id=b)
+    await load_all_username()
     sv.logger.info('B站动态推送配置文件加载成功')
-    
 
 def saveConfig():
     config_path = path.join(path.dirname(__file__),'config.json')
@@ -103,10 +104,28 @@ async def check_uid_exsist(uid):
         sv.logger.info('B站用户检查发生错误 '+e)
         return False
 
+async def get_user_name(uid):
+    header = {
+        'Referer': 'https://space.bilibili.com/{user_uid}/'.format(user_uid=uid)
+    }
+    try:
+        resp = await aiorequests.get('http://api.bilibili.com/x/space/acc/info?mid={user_uid}'.format(user_uid=uid), headers=header, timeout=20)
+        res = await resp.json()
+        return res['data']['name']
+    except Exception as e:
+        sv.logger.info('B站用户名获取发生错误 '+e)
+        return False
+
+async def load_all_username():
+    global all_user_name
+    uids = push_uids.keys()
+    for uid in uids:
+        all_user_name[uid] =await get_user_name(uid)
+
 @sv.on_prefix('订阅动态')
 async def subscribe_dynamic(bot, ev):
     if push_uids=={}:
-        loadConfig()
+        await loadConfig()
     if not check_priv(ev, SUPERUSER):
         await bot.send(ev, '仅有SUPERUSER可以订阅动态')
         return
@@ -148,7 +167,7 @@ async def subscribe_dynamic(bot, ev):
 @sv.on_prefix('取消订阅动态')
 async def disubscribe_dynamic(bot, ev):
     if push_uids=={}:
-        loadConfig()
+        await loadConfig()
     if not check_priv(ev, SUPERUSER):
         await bot.send(ev, '仅有SUPERUSER可以取消订阅动态')
         return
@@ -204,7 +223,7 @@ async def check_bili_dynamic():
         return
     isOnChecking = True
     if push_uids=={}:
-        loadConfig()
+        await loadConfig()
     uids = push_uids.keys()
     sv.logger.info('B站动态检查开始')
     for uid in uids:
@@ -220,7 +239,9 @@ async def check_bili_dynamic():
             #cards=[res['data']['cards'][10]]
             for card in cards:
                 sendCQCode=[]
-                uname=card['desc']['user_profile']['info']['uname']
+                userUid=card['desc']['user_profile']['info']['uid']
+                #uname=card['desc']['user_profile']['info']['uname']
+                uname=all_user_name[uid]
                 timestamp=card['desc']['timestamp']
                 if timestamp < push_times[uid]:
                     #sv.logger.info(uname+'检查完成')
@@ -402,9 +423,7 @@ async def check_bili_dynamic():
             if res['data']['liveStatus']==1 and not room_states[uid]:
                 room_states[uid]=True
                 sendCQCode=[]
-                userResp = await aiorequests.get('https://api.bilibili.com/x/space/acc/info?mid={user_id}'.format(user_id=uid), timeout=20)
-                userRes = await userResp.json()
-                userName = userRes['data']['name']
+                userName = all_user_name[uid]
                 sendCQCode.append(userName)
                 sendCQCode.append('开播了：\n')
                 sendCQCode.append(res['data']['title'])
@@ -471,9 +490,8 @@ async def make_big_image(image_urls,size,imageNum):
         return savePath
     pass
 
-
 @sv.on_fullmatch(('重新载入B站动态推送配置','重新载入动态推送配置'))
 async def reload_config(bot, ev):
     if check_priv(ev, SUPERUSER):
-        loadConfig()
+        await loadConfig()
         await bot.send(ev, '成功重新载入配置')
